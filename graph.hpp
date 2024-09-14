@@ -17,10 +17,31 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <algorithm>
 #include <cassert>
+#include <cmath>
+#include <ctime>//to include size_t
+#include <iostream>
 #include <list>
+#include <map>
+#include <queue>
+#include <set>
+#include <utility>
 #include <vector>
 
+
+#include "./enums/enums.hpp"
+
+
 #define all(x) (x).begin(), (x).end()
+
+using namespace std;
+
+
+struct point
+{
+  int x{};
+  int y{};
+};
+
 
 template<class graph_type> struct node
 {
@@ -111,5 +132,107 @@ public:
   // private:
   std::list<node_type> nodes;
 };
+
+
+float distance(auto n1, auto n2)
+{
+  auto [x1, y1] = (n1.value);
+  auto [x2, y2] = (n2.value);
+  return sqrtf((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
+}
+
+template<class node_value_type, class edge_value_type> struct Relative_dist
+{
+  using graph_type = graph<node_value_type, edge_value_type>;
+  using node_type = node<graph_type>;
+
+  node_type *destiny{};
+  float operator()(node_type *t_node) { return distance(*destiny, *t_node); }
+};
+
+// f(n)=g(n)+h(n),
+using t_graph_type = graph<point, float>;
+using t_node_type = t_graph_type::node_type;
+using t_edge_type = t_graph_type::edge_type;
+
+
+// auto min_func = [](t_node_type *a, t_node_type *b) { return *a > *b; };// Min-heap: "greater" means lower priority
+class a_star
+{
+  t_node_type *destiny{};
+  map<t_node_type *, bool> visited{};
+  Relative_dist<point, float> relative_dist{};
+
+  // <key: node, value: cost>
+  map<t_node_type *, float> node_costs;
+  size_t graph_size{};
+  map<t_node_type *, pair<t_node_type *, float>> paths_and_weights;
+
+public:
+  void operator()(t_node_type *t_origin, t_node_type *t_destiny, vector<t_node_type *> &best_path, size_t t_graph_size)
+  {
+    destiny = t_destiny;
+    relative_dist = Relative_dist<point, float>{ .destiny = t_destiny };
+    visited[t_origin] = true;
+    graph_size = t_graph_size;
+    paths_and_weights[t_origin] = { nullptr, 0 };
+    main_function(t_origin, best_path);
+  }
+
+private:
+  void main_function(t_node_type *t_origin, vector<t_node_type *> &best_path)
+  {
+
+    map<float, set<t_node_type *>> pri_queue;
+    for (t_edge_type *e : t_origin->edges) {
+      const bool origin_node = e->nodes[1] == t_origin;
+      t_node_type *the_other_end = e->nodes[not origin_node];
+      pri_queue[e->value + relative_dist(the_other_end)].insert(the_other_end);
+      paths_and_weights[the_other_end] = { t_origin, e->value };
+    }
+
+    t_node_type *front_node = (*(pri_queue.begin()->second.begin()));
+    while (front_node != destiny) {
+      t_node_type *curr_node = *(pri_queue.begin()->second.begin());
+      float curr_weight = paths_and_weights[curr_node].second;
+
+      for (t_edge_type *e : curr_node->edges) {
+        const bool origin_node = e->nodes[1] == curr_node;
+        t_node_type *the_other_end = e->nodes[not origin_node];
+        if (the_other_end == t_origin) { continue; }
+
+        auto it = paths_and_weights.find(the_other_end);
+        if (it != paths_and_weights.end()) {// it was already visited
+          // check if this path is better
+          if (paths_and_weights[the_other_end].second > curr_weight + e->value) {
+            auto [prev_node, prev_weight] = paths_and_weights[the_other_end];
+            paths_and_weights[the_other_end] = { curr_node, curr_weight + e->value };
+
+            // update priority_queue
+            auto it_pr_queue = pri_queue[prev_weight].find(prev_node);
+            pri_queue[prev_weight].erase(it_pr_queue);
+
+            float new_key = curr_weight + e->value + relative_dist(the_other_end);
+
+            pri_queue[new_key].insert(the_other_end);
+          }
+        } else {// it wasn't visited;
+          // add path and weight
+          float key = curr_weight + e->value + relative_dist(the_other_end);
+          pri_queue[key].insert(the_other_end);
+          paths_and_weights[the_other_end] = { curr_node, curr_weight + e->value };
+        }
+      }
+
+      pri_queue.begin()->second.erase(pri_queue.begin()->second.begin());
+      if (pri_queue.begin()->second.empty()) { pri_queue.erase(pri_queue.begin()); }
+
+      front_node = *(pri_queue.begin()->second.begin());
+    }
+  }
+};
+
+ostream &operator<<(ostream &os, point p) { return os << "(" << p.x << "," << p.y << ")"; }
+
 
 #endif// __GRAPH_H__

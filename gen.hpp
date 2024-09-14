@@ -30,6 +30,6 @@ template<class Out = std::ostream> void out_random_data(Range r, int times = 1, 
 
   using std::endl;
 
-  for (int i = 0; i < times; i++) { out << generate_t() << " "; }
+  for (int i = 0; i < times; i++) { out << generate_t() << " " << generate_t() << " "; }
   out << endl;
 }
